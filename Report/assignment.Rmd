@@ -1,0 +1,681 @@
+---
+title: "Assignment 1 - Report"
+author: "Student - SID: Sourish - 490403901"
+date: "USYD|DATA2902|September 2020"
+output: 
+  rmdformats::material:
+    code_folding: hide
+    fig_caption: yes
+    number_sections: no
+    self_contained: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction and Data Cleaning
+
+## Introduction
+
+The data-set was obtained by conducting a survey with a sample of 174 out of 572 DATA2X02 students from USYD. The questionnaire collects information on a variety of topics ranging from dental practices to physical characteristics.The data is cleaned and limitations are discussed with regards to bias and validity. Three hypothesis tests were conducted to test: (1) do the number of covid counts follow a Poisson distribution?, (2) the frequency of dental visits independent of whether students live with their parents?, and (3) the heights of male and female DATA2X02 students consistent with the statistics reported by the ABS?. These questions are addressed using  chi-squared (goodness of fit and independence) tests and one-sample t-tests.
+
+## Data Cleaning 
+
+1) Column names were cleaned, character/factors datatypes were converted to lower case and rows with only a timestamp reference were removed as they didn't have any meaningful value.
+2) An observation with unreasonable values was removed. 
+3) Timestamps were converted to a date type. Postcode was converted to a character type because postcodes are categories. Dental frequency, floss frequency, faviourite season and, stress levels were converted to a factor type because of their ordinal relationships. 
+4) Inconsistent data was cleaned:
+\
+* Postcodes without 4 digits were converted to NA values.
+* All heights was converted to centimetres.
+* Spelling variations in gender and eye colours and favourite social media were converted to a consistent value.
+* If individuals selected multiple favourite social media platforms, only the first listed was retained. 
+
+#### Columns that weren't cleaned:
+
+Shoe size wasn't cleaned because there was a multitude of inconsistency issues that couldn't be fully addressed: 
+\
+
+1) US and UK shoe sizes can't be distinguished as they are quite similar in magnitude. 
+2) Thus, we can't validly determine whether to convert European or metric (cm) shoe sizes to a UK or US shoe size.
+
+```{r, message=FALSE, warning = FALSE}
+library(tidyverse)
+library(plotly)
+library(gt)
+library(lubridate)
+library(moonBook)
+library(webr)
+library(sjPlot)
+
+df = readr:: read_csv("DATA2X02 class survey 2020 (Responses) - Form responses 1.csv") %>% 
+              janitor::clean_names() %>% 
+                    mutate_if(is.character,.funs = tolower) 
+                    
+# Change Column Names
+column_names = c('timestamps','covid_tests','gender','postcode','dental_frequency','uni_study_time','fav_socials','child_dog_cat_ownership',
+                 'lives_with_parents','time_exercising','eye_col','asthma_positive','employment_hours', 'fav_season', 'shoe_size',
+                 'height','floss_frequency', 'eyeware_positive', 'dominant_hand','steak_preference','stress_level')
+
+colnames(df) = column_names
+
+# Removing obvious missing data 
+#visdat::vis_miss(df)
+na_rows = df %>% 
+            select(-timestamps) %>% 
+              is.na() %>% 
+                rowSums() == (length(colnames(df))-1)
+
+df = df %>% filter(!na_rows)
+
+# removing "troll values" 
+df = df %>% filter(as.numeric(uni_study_time) != 170|is.na(uni_study_time))
+
+
+
+#Converting factor types 
+dental_levels = c("less than 6 months", "between 6 and 12 months" ,"between 12 months and 2 years","more than 2 years",NA)
+floss_levels = c("less than once a week","weekly" ,"most days","every day")
+stress_levels = 0:10
+season_levels = c("autumn", "winter", "spring","summer")
+
+
+df = df %>%
+      mutate(dental_frequency = factor(dental_frequency, levels = dental_levels),
+             floss_frequency = factor(floss_frequency, levels = floss_levels),
+             stress_level = factor(stress_level, levels = stress_levels), 
+             timestamps = timestamps %>% lubridate::dmy_hms( ),
+             fav_season = factor(fav_season,levels=season_levels)
+            )
+
+
+#Converting apparent numeric types to character data type 
+df = df %>% mutate(postcode = as.character(postcode))
+
+
+#unique_vals = df %>% select(-timestamp) %>% lapply(unique)
+
+
+# Clean postcode - Those with a postcode of length greater than 4 are replace as NA because no such postcode can exist.
+df = df %>% mutate(postcode = ifelse(str_length(postcode) > 4, NA, postcode))
+
+#Clean height
+df = df %>% mutate(height = ifelse(height < 2, height*100, height))
+#Clean gender
+df = df %>%  mutate(gender = case_when(startsWith(as.character(gender), "f") ~ "female",TRUE ~ gender)) %>% 
+                mutate(gender = case_when(startsWith(as.character(gender), "m") ~ "male",TRUE ~ gender)) %>% 
+                   mutate(gender = case_when(startsWith(as.character(gender), "n") ~ "other",TRUE ~ gender))
+
+#eye colour
+df = df %>%  mutate(eye_col = str_remove(eye_col, 'dark ')) %>% 
+              mutate(eye_col = str_replace(eye_col, 'balck','black'))
+
+
+# favourite social media
+df = df %>% mutate(fav_socials = word(fav_socials, 1)) %>% mutate(fav_socials = case_when(substring(fav_socials, 1,3) == "ins" ~ "instagram",
+                                                                             substring(fav_socials, 1,3) == "tik" ~ "tiktok",
+                                                                             substring(fav_socials, 1,6) == "wechat" ~ "wechat",
+                                                                             substring(fav_socials, 1,1) == "n" ~ as.character(NA),
+                                                                             TRUE ~ fav_socials)
+                                                                  )     
+write.csv(df, "cleaned_survey.csv")
+
+```
+
+# (Q1-3) Discussion Questions
+## 1) Is this a random sample?
+
+In a random sample, every sample is selected by chance with a known probability ("Random Sampling", n.d.). This isn't the case for the DATA2X02 survey. Students are given the choice to participate, thus some may be more inclined to complete the survey over others. This results in each student not being selected with a pre-defined probability. Additionally, a sample size wasn't specified prior to completing the survey and is thus not a random sample.
+
+## 2) What are the potential biases? Which variables are most likely to be subjected to this bias?
+
+**Selection bias:**
+\
+
+* Voluntary Selection Bias: Individuals who are  particularly keen to participate and active on Ed are more likely to participate in the survey. This can result in the oversampling of eager individuals, possibly influencing the timestamp variable. Conversely, this can lead to an under-sampling of students who may have been busy during the 4-5 day duration of the survey. This can lead to an under representation of students who work/study longer hours.
+* Non-Response Bias: Students may refuse to answer aspects of the survey particularly with questions they may feel embarrassed (such as dental habits, number of covid tests and height, living with parents) or like to keep private. This is an issue if respondents differ from non-respondents in a significant manner. 
+\
+
+**Response Bias:**
+\
+
+* Measurement Bias: Some individuals may record responses that make them appear socially desirable. This could particularly be the case of the height variable (Bae et al. 2010), dental related variables and hours worked/exercised, However, since responses are stripped of student identification this may not be a significant issue.
+
+## 3) Are there any questions that needed improvement to generate useful data?
+
+Yes, in the case with the favourite social media platform and shoe size questions. Students should be asked to only list one platform and report shoe sizes in one metric. With the social media variable, this lead me to choosing the platform listed first as their favourite and this may not be valid. The variety of shoe standards reported made it difficult to validly clean this variable as discussed in the data cleaning section. In general, students should be asked to report values in a specified metric, however this wasn't a major issue for other variables.
+
+
+# (Q4) Do covid counts follow a Poisson distribution ?
+
+## Goodness of Fit Test
+
+1. **Hypothesis:**  $H_0\colon$ $X$~$P(\hat{\lambda})$ vs $H_1\colon$ $X$ is not ~$P(\hat{\lambda})$, where $\hat{\lambda} = \mu_{observed}$ by the method of moments. 
+2. **Assumptions:** independent observations (each individual gets tested independently of each other) and $e_i=np_{i}\ge 5$.
+\
+
+There are two issues here, the theoretical probabilities don't sum to 1 as required in a goodness of fit test (1) and the expected cell counts don't satisfy the assumptions of being greater than 5 as seen below.
+```{r, echo=FALSE}
+observed = df %>% dplyr:: filter(!is.na(covid_tests)) %>% pull(covid_tests)
+sorted_obs = observed %>% unique() %>% sort()
+H0_expected = (sorted_obs %>% dpois(lambda = mean(observed))*length(observed)) %>% t() %>%   as.data.frame()
+colnames(H0_expected) = sorted_obs 
+
+
+H0_expected %>% round(2) %>% gt() %>% 
+  tab_spanner(label = "Counts of the number of covid tests", columns = vars(`0`,`1`, `2`,`3`,`4`,`5`,`6`, `10`) ) %>% 
+  tab_source_note(md("Table 1: Expected counts under the null hypothesis in the goodness of fit test")) 
+
+
+```
+
+**Adjusting categories to meet assumptions:** We allocate the counts into 3 categories; 0 tests, 1 test and 2 or more tests. 
+We can see that the assumptions are now met as all the cell counts are over 5. Thus, assumptions are met.
+
+```{r, echo=FALSE}
+new_observed = table(observed)[1:2] %>% append(sum(table(observed)[3:8]))
+
+adjusted_counts = c(0,1) %>% dpois(lambda = mean(observed)) 
+
+H0_probs = adjusted_counts %>% append(1 - sum(adjusted_counts))
+
+test = chisq.test(new_observed, p = H0_probs)
+test$expected %>% t() %>% as.data.frame() %>% round(2) %>%  gt() %>%
+  tab_spanner(label = "Counts of the number of covid tests", columns = vars(`0`,`1`, V3) ) %>%
+  cols_label(
+  V3 = ">= 2"
+  ) %>% 
+  tab_source_note(md("Table 2: Expected counts under the null hypothesis in the goodness of fit test after adjusting to meet assumptions")) 
+
+```
+\
+
+3. **Test statistic:**  $\displaystyle{T=\sum\limits_{i=1}^k \frac{(X_i - e_i)^2} {e_i}}$. Under $H_0$, $T \sim \chi_{k-q-1}^2$ approx.
+4. **Observed test statistic:** $t_0= 18.47$
+```{r, echo=FALSE}
+test$statistic
+```
+
+
+\ 
+
+5. **p-value:**  $P(\chi^2_{1} \ge 17.6) = 1.726444 * 10 ^{-5}$
+\
+
+```{r, echo=FALSE}
+1-pchisq(test$statistic, df = 1)
+```
+6. **Decision:**  At a  0.05 significant level, we reject the null hypothesis. The data is not consistent with the null hypothesis that the data follow a Poisson distribution.
+
+
+
+```{r, results="hide", include = FALSE}
+
+
+remove_geom <- function(ggplot2_object, geom_type) {
+  # Delete layers that match the requested type.
+  layers <- lapply(ggplot2_object$layers, function(x) {
+    if (class(x$geom)[1] == geom_type) {
+      NULL
+    } else {
+      x
+    }
+  })
+  # Delete the unwanted layers.
+  layers <- layers[!sapply(layers, is.null)]
+  ggplot2_object$layers <- layers
+  ggplot2_object
+}
+
+
+p = dist_chisq( deg.f = 1, p = 0.05)  + theme_minimal()
+```
+
+
+<style>
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+
+
+</style>
+<div class="superbigimage">
+```{r, fig.width=6.5, fig.cap= "Figure 1: Chi-squared plot with 1 degree of freedom."}
+p = remove_geom(p, "GeomText") 
+p = p + annotate("point", x = test$statistic, y = dchisq(test$statistic,df =1), colour = "blue") +
+   annotate("text", x = qchisq(0.95, df =1), y = dchisq(qchisq(0.95, df =1),df =1), label = "p < 0.05", colour = "red") + theme(legend.position = "none")+
+  annotate("text", x = test$statistic - 0.5, y = dchisq(test$statistic,df =1) + 0.02,label = "observed", colour = "blue")
+ggplotly(p) 
+```
+</div>
+
+# (Q5a) Hypothesis Test 1 - Does living with your parents influence the frequency of dental visits?
+
+**Rationale behind the test:** From Figure 2, frequency of dental visits to be higher when the proportion of individuals living with parents is larger. I found this intriguing, pondering how my dental visits are influenced by my parents. Without the financial backing and prompting from  my family I would be less inclined to visit the dentist frequently.
+
+
+<style>
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+
+
+</style>
+<div class="superbigimage">
+```{r, fig.width = 6.5, fig.cap= "Figure 2: Stacked barplot of the proportion of students living with their parents by dental visit frequency."}
+g =  df %>%  group_by(dental_frequency, lives_with_parents) %>% count() %>% filter(!is.na(dental_frequency)) %>%  
+   ggplot(aes(fill=lives_with_parents, x = dental_frequency, y = n)) + theme_minimal()+
+    geom_bar(position="fill", stat="identity") +
+      theme(axis.text.x = element_text(angle = 45), legend.position = 'bottom') +
+        labs(x = "Dental frequency", y= "Proportion", fill='')  
+  
+
+plotly:: ggplotly(g) %>%
+  plotly::layout(legend=list(title=list(text='Lives With Parents')), font = list(
+  family =  "Calibri",
+  size = 14,
+  color = 'black'))
+
+
+
+
+
+```
+</div>
+\
+
+To test if parents influenced the frequency of dental visits in DATA2X02 students, I perform a chi-squared test for independence. This is not a homogeneity test because we didn't sample from two separate populations of those who live and don't live their parents.
+\
+
+## Test for Independence
+
+1. **Hypothesis:**  $H_0\colon$ $p_{j} = p_{i\bullet} p_{\bullet j}, i = 1,2, j = 1,2,3,4$ vs $H_1$: Not all equalities hold. 
+
+2. **Assumptions:**  $e_{ij} = y_{i\bullet} y_{\bullet j}/n \geq 5$.
+
+Table 3 shows the expected cell counts are not all over 5, thus assumptions are met.
+```{r}
+contingency_table = table(df$lives_with_parents, df$dental_frequency)
+table_chi = as.data.frame(chisq.test(contingency_table, correct = FALSE)$expected) %>% janitor:: clean_names() %>% tibble() 
+table_chi$lives_with_parents = c('no','yes')
+
+
+gt::gt(data = table_chi, rowname_col = "lives_with_parents") %>%
+  tab_stubhead(label = "Lives with parents") %>% 
+  tab_spanner(
+    label = "Dental Frequencies",
+    columns = vars(lives_with_parents,less_than_6_months, between_6_and_12_months, between_12_months_and_2_years, more_than_2_years )
+  ) %>% 
+  cols_label(
+    lives_with_parents = "Lives with parents",
+    less_than_6_months = "Less than 6 months", 
+    between_6_and_12_months = "Between 6 and 12 months", 
+    between_12_months_and_2_years = "Between 12 and 24 months", 
+    more_than_2_years = "More than 24 months"
+    ) %>% 
+  tab_source_note(md("Table 3: Expected counts in Chi-squared test for independence"))
+  
+
+```
+
+\
+
+3. **Test statistic:**  $\displaystyle{T=\sum\limits_{i=1}^r \sum\limits_{j=1}^c \frac{(y_{ij} - e_{ij})^2}{e_{ij} }}$. Under $H_0$, $T \sim \chi^2_{(r-1)(c-1)}$ approx.
+
+
+4. **Observed test statistic:** $t_0 = 9.33$
+```{r}
+chisq.test(contingency_table, correct = FALSE)$statistic 
+```
+
+\
+
+5. **p-value:**  $P(\chi^2_{3} \ge 9.33) =  0.025$
+
+
+<style>
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+
+
+</style>
+<div class="superbigimage">
+```{r,warning=FALSE, message=FALSE,  fig.cap= "Figure 3: Chi-squared plot with 3 degrees of freedom.", fig.width = 6.5}
+chisq.test(contingency_table, correct = FALSE)$p.value
+
+dummy = chisq.test(contingency_table, correct = FALSE)
+
+p= plot(chisq.test(contingency_table, correct = FALSE))
+p = p + annotate("text", x = dummy $statistic, y = dchisq(dummy$statistic,df =dummy$parameter) + 0.02,label = "observed", colour = "blue")
+ggplotly(p)
+```
+</div>
+
+\
+6. **Decision:**  At a 5% significance level, we reject the null hypothesis; there is evidence that the probability associated with different dental visits frequencies are not independent of whether a DATA2X02 student live with their parents.
+
+**Limitations**
+\
+
+* The survey data is not a random sample, thus this may have led to bias in the sample data and thus can lead to a measurement bias (social desirability) as prior mentioned. 
+* DATA2X02 students are likely to be fairly recent high school graduates (since it's a 2nd year unit). Thus, the time students have not visited the dentist may not entirely span the time away from their parents (as this would be a fairly recent event for 19-21 year olds), possibly inhibiting the validity of the test. 
+
+# (Q5b) Hypothesis Test 2 - Are the heights of DATA2X02 male and female students consistent with the statistics recorded by the Australian Bureau (ABS) for 18-24 year olds? 
+
+
+**Rationale behind the test:** From the Figure 4 violin plot, the distribution of heights is fairly symmetric for each gender and may be normal. Thus, I thought that height by gender may be an appropriate variable for a one-sample t-test for means which assumes normality. I was interested in this variable because I wanted to compare my height relative to my peers. Being in the lower quartile for my gender, I wanted to see if the heights of DATA2X02 students are unusually high or even low relative to the Australian population.
+
+<style>
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+
+
+</style>
+<div class="superbigimage">
+
+```{r, warning=FALSE, fig.width= 6.5, fig.cap= "Figure 4: Comparative violin plots with boxplot overlay for heights by gender."}
+fig <- df %>%
+  plot_ly(
+    x = ~gender,
+    y = ~height,
+    split = ~gender,
+    type = 'violin',
+    box = list(
+      visible = T
+    ),
+    meanline = list(
+      visible = T
+    )
+  ) 
+
+fig <- fig %>%
+  layout(
+    xaxis = list(
+      title = "Gender"
+    ),
+    yaxis = list(
+      title = "Height",
+      zeroline = F
+    )
+  )
+fig
+```
+</div>
+\
+
+Since the ABS recorded heights ("4338.0 - Profiles of Health, Australia, 2011-13", 2020) for 18-24 year olds are reported separately for men and women, I did a one sample t-test for both the male and female genders.
+
+## One-sample t-tests
+
+**Note:** I condense both the test for males and females (which are 2 distinct one-sample t-tests) to a single framework to avoid redundantly restating steps.
+
+**Notation:** Let $X$ be the random variable representing male heights and $Y$ denote female heights. 
+\
+
+
+1. **Hypothesis:**  $H_0\colon \mu_{X} = 177.8 , \mu_{Y} = 163.8$ (As reported by the ABS)  vs $H_1\colon \mu_{X} \neq 177.8, \mu_{Y} \neq 163.8$.
+2. **Assumptions:** $X_1,......X_n$are iid rvs distributed ~ $N(\mu_x, \sigma^2_x)$ and $Y_1,......Y_n$ are iid rvs distributed ~ $N(\mu_y, \sigma^2_y)$ . Alternatively, the sample sizes are large enough to assume that the sample mean converges to normal by the CLT (Lumley et al., 2002).
+\
+
+***Independence Assumption:*** It's fairly reasonable to assume each student's height is independent of each other.
+
+***Normality Assumption:*** We will check the normality assumption using qqplots (comparing the sample the theoretical quantiles of a ~$N(0,1)$ distribution) and the using the Shapiro Wilkes test for normality:
+
+* **qqplot**: The distribution of female heights seem to match the theoretical quantiles fairly well and likely satisfies the normality assumption. However, the male sample seems to deviate slightly from the diagonal (line) on the lower tail, indicating that male heights in DATA2X02 may not be normally distributed. 
+
+
+<style>
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+
+
+</style>
+<div class="superbigimage">
+```{r,warning=FALSE,fig.align='center', fig.cap= "Figure 5: qqnorm plots that visually test for normality of the samples", fig.width = 9}
+
+a <- list(
+  text = paste("Male", 'Height','qqplot'),
+  xref = "paper",
+  yref = "paper",
+  yanchor = "bottom",
+  xanchor = "center",
+  align = "center",
+  x = 0.5,
+  y = 1,
+  showarrow = FALSE
+)
+
+b <- list(
+  text = paste("Female", 'Height','qqplot'),
+  xref = "paper",
+  yref = "paper",
+  yanchor = "bottom",
+  xanchor = "center",
+  align = "center",
+  x = 0.5,
+  y = 1,
+  showarrow = FALSE
+)
+
+p1 = df %>% filter(gender == "male") %>% ggplot() + aes(sample = height) + stat_qq() + stat_qq_line() + theme_minimal()
+p1 = p1 %>% ggplotly() %>% layout(annotations = a)
+
+p2 = df %>% filter(gender == "female") %>% ggplot() + aes(sample = height) + stat_qq() + stat_qq_line() + theme_minimal()
+p2 = p2 %>% ggplotly %>% layout(annotations = b)
+
+
+
+
+plotly:: subplot(p1, p2, nrows = 1, margin = 0.04)
+
+```
+</div>
+\
+
+* **Shapiro Wilkes Test for Normality:** The normality assumption is met for females but not males. However, because the male sample doesn't appear too skewed and the sample size  is reasonably large (n = 107), the CLT indicates that the sample means approach a normal distribution. Thus, we will still conduct the one-sample t-test for both males and females.
+\
+
+As seen in table 4, the p-value for males is $< 0.05$  so at a 5% significance level we reject the null hypothesis that their heights are normally distributed. However, the p-value for females is $\geq 0.05$, so female heights are consistent with the null hypothesis that the heights are normally distributed. This is supported by the qqplots above.
+
+
+
+```{r}
+
+
+test1 = df %>% filter(gender == "male") %>% pull(height) %>% shapiro.test() 
+test2 = df %>% filter(gender == "female") %>% pull(height) %>% shapiro.test()
+
+
+test = c(test1$statistic,test1$p.value,test2$statistic,test2$p.value)%>% matrix(byrow = FALSE, ncol = 2) %>% as.data.frame() 
+colnames(test) = c("Male", "Female")
+test$` ` = c("w statistic", "p-value")
+
+
+
+
+test %>% gt() %>% tab_spanner("Shapiro Wilkes Test", columns = vars(` `,Male, Female)) %>% tab_source_note(md("Table 4: Shapiro w statistic and p-value"))
+
+```
+\
+
+3. **Test statistic:** Males:  $T_X$~$t_{n-1}$, $\displaystyle{T_X= \frac{\bar{X}-\mu_{x_{0}}}{S_x/\sqrt{n}}}$ under $H_0$, $T_Y$~$t_{n-1}$. Females: $\displaystyle{T_Y= \frac{\bar{Y}-\mu_{y_{0}}}{S_y/\sqrt{n}}}$ under $H_0$
+\
+
+4. **Observed test statistic:** Male: $t_{x_{0}} = 0.006$. .Female: $t_{y_{0}} = 0.79$. 
+```{r}
+ttest_male= df %>% filter(gender == "male") %>% pull(height) %>% t.test(mu= 177.8)
+ttest_fem= df %>% filter(gender == "female") %>% pull(height) %>% t.test(mu= 163.8)
+
+ttest_male$statistic
+ttest_fem$statistic
+
+#t_table = c(ttest$estimate,ttest$statistic, ttest$parameter,ttest$p.value, list(ttest$conf.int)) %>% 
+  # t() %>% as.data.frame() 
+#colnames(t_table) = c("Observed Mean", "w-statistic", "degrees of freedom", "p-value", '95% confidence interval')
+#t_table %>% gt()  %>% tab_spanner(label = "Female", columns = colnames(t_table)) %>% 
+ # tab_source_note(md("Table 5: Output from two sided one sample t-test"))
+
+```
+\
+
+5. **p-value:** Male: $2P(t_{106} \ge |{0.006}|) = 0.995$. Female: $2P(t_{52} \ge |{0.79}|) = 0.43$. 
+
+<style>
+  .superbigimage{
+      overflow-x:scroll;
+      white-space: nowrap;
+  }
+
+  .superbigimage img{
+     max-width: none;
+  }
+
+
+</style>
+<div class="superbigimage">
+
+```{r, warning=FALSE, message = FALSE, fig.cap= "Figure 6: t-distribution plots with 107 (left) and 50 (right) degrees of freedom.",fig.width = 9}
+ttest_male$p.value
+ttest_fem$p.value
+
+
+a <- list(
+  text = "One-sample t-test for female heights",
+  xref = "paper",
+  yref = "paper",
+  yanchor = "bottom",
+  xanchor = "center",
+  align = "center",
+  x = 0.5,
+  y = 1,
+  showarrow = FALSE
+)
+
+b <- list(
+  text = "One-sample t-test for male heights+",
+  xref = "paper",
+  yref = "paper",
+  yanchor = "bottom",
+  xanchor = "center",
+  align = "center",
+  x = 0.5,
+  y = 1,
+  showarrow = FALSE
+)
+
+
+p1= plot(ttest_fem)
+p1 = p1 + annotate("text", x = ttest_fem$statistic +0.2, y = dt(ttest_fem$statistic,df =50) + 0.02,label = "observed", colour = "blue")  +ggtitle("Males                                                          Females")
+p1 = ggplotly(p1) %>% layout(a)
+
+
+p2= plot(ttest_male)
+p2 = p2 + annotate("text", x = ttest_male$statistic, y = dt(ttest_male$statistic,df =107)+0.02,label = "observed", colour = "blue")
+p2 = ggplotly(p2) %>% layout(b)
+
+plotly:: subplot(p2, p1, nrows = 1, margin = 0.04)
+```
+</div>
+\
+
+6. **Decision:**  Since the p-value is $> 0.05$, the data is consistent with the null hypothesis for both one-sample t-tests. That is, that the mean female and male heights aged 18-24 is 163.8cm and 177.8cm respectively as reported by the ABS. 
+
+
+**Limitations**
+\
+
+* Self reported observations may be subject to measurement(social desirability bias) as previously discussed. 
+* The "other" gender observations were be excluded as ABS data didn't record heights for them. Furthermore, these indivdiuals cannot be pooled into male/female samples since we don't know the gender they genetically identify with.
+
+
+# Conclusion, References and Libraries 
+
+## Conclusion
+
+The results of this report found that covid tests are not consistent with a Poisson distribution. Dental frequency is not consistent with being independent of living with parents and DATA2X02 heights are consistent with the heights reported by the ABS for 18-24 year olds. However, since the data obtained is not a random sample, this may lead to bias that impairs the validity of the obtained results.
+
+
+## References
+
+4338.0 - Profiles of Health, Australia, 2011-13. Abs.gov.au. (2020). Retrieved 22 September 2020, from https://www.abs.gov.au/ausstats/abs@.nsf/lookup/4338.0main+features212011-13.
+
+Bae, J., Joung, H., Kim, J. Y., Kwon, K. N., Kim, Y., & Park, S. W. (2010). Validity of self-reported height, weight, and body mass index of the Korea Youth Risk Behavior Web-based Survey questionnaire. J Prev Med Public Health, 43(5), 396-402.
+
+Lumley, T., Diehr, P., Emerson, S., & Chen, L. (2002). The Importance of the Normality Assumption in Large Public Health Data Sets. Annual Review Of Public Health, 23(1), 151-169. https://doi.org/10.1146/annurev.publhealth.23.100901.140546
+
+Random Sampling. Encyclopedia Of Survey Research Methods. doi: 10.4135/9781412963947.n4404
+
+
+
+## Packages
+
+
+  C. Sievert. Interactive Web-Based Data Visualization with R, plotly, and shiny. Chapman and Hall/CRC
+    Florida, 2020.
+  
+  Garrett Grolemund, Hadley Wickham (2011). Dates and Times Made Easy with lubridate. Journal of
+    Statistical Software, 40(3), 1-25. URL http://www.jstatsoft.org/v40/i03/.
+  
+  H. Wickham. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York, 2016.
+
+  Hadley Wickham, Jim Hester and Romain Francois (2018). readr: Read Rectangular Text Data. R package
+    version 1.3.1. https://CRAN.R-project.org/package=readr
+    
+  Hadley Wickham, Romain François, Lionel Henry and Kirill Müller (2020). dplyr: A Grammar of Data
+    Manipulation. R package version 1.0.2. https://CRAN.R-project.org/package=dplyr
+    
+  Julien Barnier (2020). rmdformats: HTML Output Formats and Templates for 'rmarkdown' Documents. R package version 0.3.7.
+    https://CRAN.R-project.org/package=rmdformats
+  
+  Keon-Woong Moon. R statistics and graphs for medical papers. Hannaare Seoul, 2015.
+  
+  Keon-Woong Moon (2020). webr: Data and Functions for Web-Based Analysis. R package version 0.1.6.
+    https://github.com/cardiomoon/webr
+  
+  Lüdecke D (????). _sjPlot: Data Visualization for Statistics in Social Science_. R package version
+    2.8.4.9000, <URL: https://CRAN.R-project.org/package=sjPlot>.
+  
+  Richard Iannone, Joe Cheng and Barret Schloerke (2020). gt: Easily Create Presentation-Ready Display
+    Tables. R package version 0.2.2. https://CRAN.R-project.org/package=gt
+  
+  Sam Firke (2020). janitor: Simple Tools for Examining and Cleaning Dirty Data. R package version 2.0.1.
+    https://CRAN.R-project.org/package=janitor
+  
+  Wickham et al., (2019). Welcome to the tidyverse. Journal of Open Source Software, 4(43), 1686,
+    https://doi.org/10.21105/joss.01686
+
+
+
+
+
+
