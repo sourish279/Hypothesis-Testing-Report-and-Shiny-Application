@@ -1,0 +1,309 @@
+---
+title: "Survey data cleaning"
+author: "Garth Tarr"
+date: "10/09/2020"
+output:
+  bookdown::html_document2: # note that this requires bookdown
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    code_folding: hide
+    number_sections: true
+    theme: paper
+    highlight: kate
+    css: style.css
+---
+
+This R Markdown file walks through some data cleaning for the assignment survey data. It does not represent a complete set of data cleaning code, there are many variables that haven't been cleaned and there are some decisions you might take for individual rows to possibly exclude them. You're welcome to use any of the code below in your assignment, but you will almost certainly need to adapt it and add to it.
+
+Your assignment is not about data cleaning, as such, but you will need to include the code that you use to clean your data and a couple of paragraphs describing what data cleaning was performed and justifying any decisions you made along the way.
+
+You don't need to go step by step through the process like I've done below, a single "data cleaning" code chunk that performs all the cleaning at once and a couple of paragraphs describing the rationale are all that's required. 
+
+I've put a bit of effort making the tables look nice and the plots are OK - they have captions, but the legends/colours/theming of some could still be tidied up, I wouldn't get 10/10 for this effort. Every figure or table you include in your assignment should also be referenced and discussed in the text. If you don't talk about a table/figure then it shouldn't be included. They don't "speak for themselves". [This is also something I haven't always done below, another reason that I wouldn't get 10/10.]
+
+```{r setup, include=TRUE, message = FALSE}
+# install.packages("bookdown")
+# using bookdown::html_document2 in the YAML enables automatic figure numbering
+# when you add a caption in the chunk. You can also perform referencing of 
+# figures see https://bookdown.org/yihui/rmarkdown/bookdown-markdown.html#cross-referencing
+# you can instead just use the standard html_document
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+# install.packages("janitor")
+library(janitor)
+# install.packages("skimr")
+# install.packages("visdat")
+library(skimr)
+library(visdat)
+# install.packages("remotes")
+# remotes::install_github("ropenscilabs/gendercodeR")
+# https://github.com/ropenscilabs/gendercoder
+library(gendercodeR)
+```
+
+_Note that the **gendercodeR** package doesn't live on [CRAN](https://cran.r-project.org/), so it can't be installed with `install.packages()`. It lives in a [GitHub repository](https://github.com/ropenscilabs/gendercoder) and we need to install it with `remotes::install_github("ropenscilabs/gendercodeR")`._
+
+# Import the data
+
+```{r, message=FALSE}
+# readr::read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vTf8eDSN_2QbMTyVvO5bdYKZSEEF2bufDdYnLnL-TsR8LM-6x-xu1cxmDMohlbLrkMJn9DE7EG7pg5P/pub?gid=1724783278&single=true&output=csv")
+raw = read_csv("DATA2X02 class survey 2020 (Responses) - Form responses 1.csv")
+```
+
+## Clean column names
+
+Here are the column names:
+
+```{r}
+tibble(Position = 1:21, `Column names` = colnames(raw)) %>%
+  gt::gt() %>% 
+  gt::tab_source_note("Table 1: Questions asked in the DATA2002 survey.")
+```
+
+First we'll clean the column names with the janitor package. 
+
+```{r, results = "hide"}
+x = raw %>% janitor::clean_names()
+colnames(x)
+```
+
+In the above chunk I've used `results = "hide"` so that it doesn't print it out in a horrible code like way. 
+
+The column names are still unwieldy, we can remove redundant text common to multiple entries using the `stringr::str_replace()` function.
+
+```{r}
+colnames(x) = stringr::str_replace(string = colnames(x),
+                                   pattern = "what_is_your_",
+                                   replacement = "")
+colnames(x) = stringr::str_replace(string = colnames(x),
+                                   pattern = "on_average_how_many_hours_per_week_did_you_",
+                                   replacement = "")
+```
+
+In this case, it's probably easiest to go through and manually shorten them.
+
+```{r}
+colnames(x)[2] = "covid_test"
+colnames(x)[4] = "postcode"
+colnames(x)[5] = "dentist"
+colnames(x)[6] = "university_work"
+colnames(x)[7] = "social_media"
+colnames(x)[8] = "dog_or_cat"
+colnames(x)[9] = "live_with_parents"
+colnames(x)[10] = "exercising"
+colnames(x)[12] = "asthma"
+colnames(x)[13] = "paid_work"
+colnames(x)[14] = "fav_season"
+colnames(x)[16] = "height"
+colnames(x)[17] = "floss_frequency"
+colnames(x)[18] = "glasses"
+colnames(x)[20] = "steak_preference"
+colnames(x)[21] = "stress_level"
+```
+
+```{r}
+tibble(Position = 1:21, `Variable name` = colnames(x), `Corresponding question` = colnames(raw)) %>%
+  gt::gt() %>% 
+  gt::tab_source_note("Table 2: Variable names and the corresponding questions asked in the DATA2002 survey.")
+```
+
+Later on in the data cleaning process we identified that postcode isn't really a numeric variable, so we've come back and `mutate()`d it to a character vector here. Similarly we found that `timestamp` appears as a character variable. The **lubridate** package has been used to convert it to a date time object.
+
+
+```{r}
+x = x %>% mutate(
+  postcode = as.character(postcode),
+  timestamp = lubridate::dmy_hms(timestamp)
+)
+```
+
+# Quick look at the data
+
+It's always a good idea to generate some basic summary statistics and visualisations when you get a new data set. There are almost always issues in the data that need to be dealt with.
+
+## skimr package
+
+```{r}
+x %>% skimr::skim()
+```
+
+## visdat package
+
+We can visualise the missingness in the data using the **visdat** package. In Figure \@ref(fig:missingness) below we can see that some missingness exists and we should probably go back and remove the rows that are completely empty (apart from a timestamp). To do this you might consider using the `filter()` function or the more specific `drop_na()` function.
+
+```{r missingness, fig.cap="Visualising the missingness in the data."}
+visdat::vis_miss(x)
+```
+
+
+## Numeric variables
+
+```{r, results = "hide", echo = FALSE}
+# this code chunk and it's result is hidden from the HTML document
+x %>% dplyr::select(where(is.numeric)) %>% colnames()
+```
+
+Figure \@ref(fig:overviewplot) presents an overview of all the numeric variables before any cleaning has been preformed.
+
+```{r overviewplot, message=FALSE, warning = FALSE, fig.cap="Histograms and bar charts for the numeric variables."}
+p1 = x %>% ggplot(aes(x = covid_test)) + geom_bar()
+p2 = x %>% ggplot(aes(x = stress_level)) + geom_bar()
+p3 = x %>% ggplot(aes(x = university_work)) + geom_histogram()
+p4 = x %>% ggplot(aes(x = exercising)) + geom_histogram()
+p5 = x %>% ggplot(aes(x = paid_work)) + geom_histogram()
+p6 = x %>% ggplot(aes(x = shoe_size)) + geom_histogram()
+p7 = x %>% ggplot(aes(x = height)) + geom_histogram()
+gridExtra::grid.arrange(p1, p2, p3, p4, p5, p6, p7, ncol = 3)
+```
+
+### Height
+
+We can clean the height variable by making a reasonable guess that heights like 1.62 should be 162 and we implement this using the `case_when()` function.
+
+```{r}
+# table(x$height)
+x = x %>% 
+  dplyr::mutate(
+    height = dplyr::case_when(
+      height < 2.3 ~ height*100,
+      # if there were also heights in feet we could use this next:
+      # height < 7 ~ height* <conversion factor from feet to m>,
+      TRUE ~ height
+    )
+  )
+```
+
+
+```{r, fig.height = 3, fig.cap = "Distribution of heights after rescaling the heights reported in metres."}
+x %>% 
+  ggplot(aes(x = height)) +
+  geom_histogram() + 
+  labs(x = "Height (cm)", y = "Count") + 
+  theme_bw()
+```
+
+### Other continuous variables
+
+Cleaning the other continuous variables is left as an exercise for the reader.
+
+## Categorical variables
+
+```{r, echo = FALSE, results = "hide"}
+x %>% select(where(is.character)) %>% colnames()
+```
+
+### Gender
+
+The gender question was free form text input. We observed the following distinct entries: `r x %>% pull(gender) %>% unique() %>% sort() %>% paste(collapse = ", ")`. We need to wrangle these into a common form. 
+
+Approach 1: the manual way. Convert all text to upper case, then retain only the first character of each entry and finally rename these so that they're make more useful labels later on. I used `case_when()` for the renaming but you could also use `recode()`.
+
+```{r}
+x1 = x %>% mutate(
+  gender = toupper(gender),
+  gender = stringr::str_sub(gender, start = 1, end = 1),
+  gender = case_when(
+    gender == "F" ~ "Female",
+    gender == "M" ~ "Male",
+    gender == "N" ~ "Non-binary"
+  )
+)
+# x1 %>% janitor::tabyl(gender) 
+```
+
+Approach 2: using the [**gendercodeR** package](https://github.com/ropenscilabs/gendercoder) which is tailor made to help in this situation.
+
+```{r}
+x = x %>% mutate(
+  gender = gendercodeR::recode_gender(gender)
+)
+x %>% 
+  janitor::tabyl(gender) %>% 
+  gt::gt() %>% 
+  gt::fmt_percent(columns = c("percent","valid_percent"),
+                  decimals = 0) %>% 
+  gt::tab_source_note("Table 3: Summary of gender proportions.")
+```
+
+### Eye colour
+
+With eye colour we've taken a different approach, using the `fct_lump()` function from the **forcats** package. See `fct_lump` for details.
+
+```{r}
+# x %>% janitor::tabyl(eye_colour)
+# x %>% filter(eye_colour == "Yellow")
+x = x %>% 
+  mutate(
+    eye_colour = tolower(eye_colour),
+    eye_colour = forcats::fct_lump(eye_colour, n = 6)
+  )
+x %>% 
+  janitor::tabyl(eye_colour) %>% 
+  arrange(desc(n)) %>% # arrange in descending order
+  gt::gt() %>% 
+  gt::fmt_percent(columns = c("percent","valid_percent"),
+                  decimals = 0) %>% 
+  gt::tab_source_note("Table 4: Summary of eye colour proportions.")
+```
+
+### Social media
+
+This will need some attention.
+
+```{r}
+# x %>% janitor::tabyl(social_media)
+```
+
+### Steak preference
+
+There's a natural ordering to the cooking preferences, we we'll make sure that's respected in Figure \@ref(fig:steakplot) by `mutate()`ing it to a factor and specifing the `levels` in the correct order.
+
+```{r}
+steak_levels = c("Rare", "Medium-rare", "Medium", 
+                 "Medium-well done", "Well done", 
+                 "I don't eat beef")
+x = x %>% 
+  mutate(
+    steak_preference = factor(steak_preference, levels = steak_levels)
+  )
+```
+
+
+```{r steakplot, fig.height=3, fig.cap="Distribution of how well cooked people prefered their steak."}
+x %>% ggplot() + 
+  aes(y = steak_preference, fill = steak_preference) + 
+  geom_bar() + 
+  theme(legend.position = "none") + 
+  labs(y = "", x = "Count")
+```
+
+## Time variable
+
+If you ever get a dataset with a time variable, make sure you check out the distribution of observations over time. You can often notice oddities or gaps in the data this way.
+
+```{r, fig.cap="Distribution of responses over time."}
+x %>% ggplot() + aes(x = timestamp) + 
+  geom_histogram()
+```
+
+# References
+
+```{r, include = FALSE}
+citation("tidyverse")
+citation("janitor")
+citation("visdat")
+citation("gendercodeR")
+citation("gt")
+citation("skimr")
+citation()
+```
+
+- Beaudry J, Emily Kothe, Felix Singleton Thorn and Rhydwyn McGuire (2020). gendercodeR: Recodes Sex/Gender Descriptions Into A Standard Set. R package version 0.0.0.9000. https://github.com/ropenscilabs/gendercoder
+- Firke S (2020). janitor: Simple Tools for Examining and Cleaning Dirty Data. R package version 2.0.1. https://CRAN.R-project.org/package=janitor
+- Iannone R, Joe Cheng and Barret Schloerke (2020). gt: Easily Create Presentation-Ready Display Tables. R package version 0.2.2. https://CRAN.R-project.org/package=gt
+- R Core Team (2020). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. https://www.R-project.org/.
+- Tierney N (2017). "visdat: Visualising Whole Data Frames." _JOSS_, *2*(16), 355. doi: [10.21105/joss.00355](https://doi.org/10.21105/joss.00355)
+- Waring E, Michael Quinn, Amelia McNamara, Eduardo Arino de la Rubia, Hao Zhu and Shannon Ellis (2020). skimr: Compact and Flexible Summaries of Data. R package version 2.1.2. https://CRAN.R-project.org/package=skimr
+- Wickham H et al., (2019). Welcome to the tidyverse. Journal of Open Source Software, 4(43), 1686, doi: [10.21105/joss.01686](https://doi.org/10.21105/joss.01686)
+
