@@ -24,12 +24,12 @@ The data-set was obtained by conducting a survey with a sample of 174 out of 572
 ## Data Cleaning 
 
 1) Column names were cleaned, character/factors datatypes were converted to lower case and rows with only a timestamp reference were removed as they didn't have any meaningful value.
-2) An observation with unreasonable values was removed. 
+2) An observation with unreasonable values was removed (total time spent on activities in the week exceeds the amount of hours available in a week). 
 3) Timestamps were converted to a date type. Postcode was converted to a character type because postcodes are categories. Dental frequency, floss frequency, faviourite season and, stress levels were converted to a factor type because of their ordinal relationships. 
 4) Inconsistent data was cleaned:
 \
 * Postcodes without 4 digits were converted to NA values.
-* All heights was converted to centimetres.
+* All heights were converted to centimetres.
 * Spelling variations in gender and eye colours and favourite social media were converted to a consistent value.
 * If individuals selected multiple favourite social media platforms, only the first listed was retained. 
 
@@ -152,7 +152,7 @@ Yes, in the case with the favourite social media platform and shoe size question
 
 ## Goodness of Fit Test
 
-1. **Hypothesis:**  $H_0\colon$ $X$~$P(\hat{\lambda})$ vs $H_1\colon$ $X$ is not ~$P(\hat{\lambda})$, where $\hat{\lambda} = \mu_{observed}$ by the method of moments. 
+1. **Hypothesis:**  $H_0\colon$ $X$~$P(\lambda)$ vs $H_1\colon$ $X$ is not ~$P(\hat{\lambda})$, where $\lambda = \mu_{observed}$ by the method of moments. 
 2. **Assumptions:** independent observations (each individual gets tested independently of each other) and $e_i=np_{i}\ge 5$.
 \
 
@@ -201,13 +201,13 @@ test$statistic
 
 \ 
 
-5. **p-value:**  $P(\chi^2_{1} \ge 17.6) = 1.726444 * 10 ^{-5}$
+5. **p-value:**  $P(\chi^2_{1} \ge 17.6) \leq 0.001$
 \
 
 ```{r, echo=FALSE}
 1-pchisq(test$statistic, df = 1)
 ```
-6. **Decision:**  At a  0.05 significant level, we reject the null hypothesis. The data is not consistent with the null hypothesis that the data follow a Poisson distribution.
+6. **Decision:**  At a  0.05 significance level, we reject the null hypothesis. The data is not consistent with the null hypothesis that the data follow a Poisson distribution.
 
 
 
@@ -303,7 +303,7 @@ To test if parents influenced the frequency of dental visits in DATA2X02 student
 
 1. **Hypothesis:**  $H_0\colon$ $p_{j} = p_{i\bullet} p_{\bullet j}, i = 1,2, j = 1,2,3,4$ vs $H_1$: Not all equalities hold. 
 
-2. **Assumptions:**  $e_{ij} = y_{i\bullet} y_{\bullet j}/n \geq 5$.
+2. **Assumptions:**  $e_{ij} = y_{i\bullet} y_{\bullet j}/n \geq 5$ and all observations are independent of each other.
 
 Table 3 shows the expected cell counts are not all over 5, thus assumptions are met.
 ```{r}
@@ -332,7 +332,7 @@ gt::gt(data = table_chi, rowname_col = "lives_with_parents") %>%
 
 \
 
-3. **Test statistic:**  $\displaystyle{T=\sum\limits_{i=1}^r \sum\limits_{j=1}^c \frac{(y_{ij} - e_{ij})^2}{e_{ij} }}$. Under $H_0$, $T \sim \chi^2_{(r-1)(c-1)}$ approx.
+3. **Test statistic:**  $\displaystyle{T=\sum\limits_{i=1}^r \sum\limits_{j=1}^c \frac{(Y_{ij} - e_{ij})^2}{e_{ij} }}$. Under $H_0$, $T \sim \chi^2_{(r-1)(c-1)}$ approx.
 
 
 4. **Observed test statistic:** $t_0 = 9.33$
@@ -370,7 +370,7 @@ ggplotly(p)
 </div>
 
 \
-6. **Decision:**  At a 5% significance level, we reject the null hypothesis; there is evidence that the probability associated with different dental visits frequencies are not independent of whether a DATA2X02 student live with their parents.
+6. **Decision:**  At a 5% significance level, we reject the null hypothesis; there is evidence that dental visits frequencies are not independent of whether a DATA2X02 student live with their parents.
 
 **Limitations**
 \
@@ -397,7 +397,7 @@ ggplotly(p)
 </style>
 <div class="superbigimage">
 
-```{r, warning=FALSE, fig.width= 6.5, fig.cap= "Figure 4: Comparative violin plots with boxplot overlay for heights by gender."}
+```{r, warning=FALSE, fig.width= 6.5, fig.cap= "Figure 4: Comparative violin plots with boxplot overlay for heights by gender. Note that a violin plot may not be appropriate for the non-binary gender as there are limited observations."}
 fig <- df %>%
   plot_ly(
     x = ~gender,
@@ -443,7 +443,7 @@ Since the ABS recorded heights ("4338.0 - Profiles of Health, Australia, 2011-13
 
 ***Independence Assumption:*** It's fairly reasonable to assume each student's height is independent of each other.
 
-***Normality Assumption:*** We will check the normality assumption using qqplots (comparing the sample the theoretical quantiles of a ~$N(0,1)$ distribution) and the using the Shapiro Wilkes test for normality:
+***Normality Assumption:*** We will check the normality assumption using qqplots (comparing the sample the theoretical quantiles of a ~$N(0,1)$ distribution) and the using the Shapiro Wilk's test for normality:
 
 * **qqplot**: The distribution of female heights seem to match the theoretical quantiles fairly well and likely satisfies the normality assumption. However, the male sample seems to deviate slightly from the diagonal (line) on the lower tail, indicating that male heights in DATA2X02 may not be normally distributed. 
 
@@ -502,7 +502,7 @@ plotly:: subplot(p1, p2, nrows = 1, margin = 0.04)
 </div>
 \
 
-* **Shapiro Wilkes Test for Normality:** The normality assumption is met for females but not males. However, because the male sample doesn't appear too skewed and the sample size  is reasonably large (n = 107), the CLT indicates that the sample means approach a normal distribution. Thus, we will still conduct the one-sample t-test for both males and females.
+* **Shapiro Wilk Test for Normality:** The normality assumption is met for females but not males. However, because the male sample doesn't appear too skewed and the sample size  is reasonably large (n = 107), the CLT indicates that the sample means approach a normal distribution. Thus, we will still conduct the one-sample t-test for both males and females.
 \
 
 As seen in table 4, the p-value for males is $< 0.05$  so at a 5% significance level we reject the null hypothesis that their heights are normally distributed. However, the p-value for females is $\geq 0.05$, so female heights are consistent with the null hypothesis that the heights are normally distributed. This is supported by the qqplots above.
@@ -615,7 +615,7 @@ plotly:: subplot(p2, p1, nrows = 1, margin = 0.04)
 \
 
 * Self reported observations may be subject to measurement(social desirability bias) as previously discussed. 
-* The "other" gender observations were be excluded as ABS data didn't record heights for them. Furthermore, these indivdiuals cannot be pooled into male/female samples since we don't know the gender they genetically identify with.
+* Non-binary observations were excluded from the analysis as ABS data didn't record heights for them. Furthermore, these indivdiuals cannot be pooled into male/female samples.
 
 
 # Conclusion, References and Libraries 
