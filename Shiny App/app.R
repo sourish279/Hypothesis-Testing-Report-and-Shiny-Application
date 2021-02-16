@@ -157,7 +157,7 @@ ui <- fluidPage(
                      titlePanel("Are expected cell count assumptions met ?"),
                      verbatimTextOutput("a_met"),
                      conditionalPanel("input.expected == 1",titlePanel("Expected Counts Table"),gt_output("goodness_counts")),
-                     titlePanel("Goodness of Fit Test Results"),
+                     titlePanel("Goodness of Fit test results"),
                      verbatimTextOutput("chi_goodness"),
                      plotly:: plotlyOutput("chiPlot1")
                  )
@@ -171,7 +171,7 @@ ui <- fluidPage(
                      ),
                      selectizeInput("ind_hom2", "Choose Category 2:", rev(categories)
                      ),
-                     checkboxInput('obs_table', "Show observed Counts?", value = FALSE, width = NULL),
+                     checkboxInput('obs_table', "Show observed counts?", value = FALSE, width = NULL),
                      checkboxInput('expected2', "Show expected counts under the null hypothesis?", value = FALSE, width = NULL)
                  ),
                  
@@ -180,7 +180,7 @@ ui <- fluidPage(
                      titlePanel("Are expected cell count assumptions met?"),
                      verbatimTextOutput("a_met2"),
                      conditionalPanel("input.expected2 == 1",titlePanel("Expected Counts Table"),gt_output("exp_counts_ind")),
-                     titlePanel("Chi-squared Test for Independence Results "),
+                     titlePanel("Chi-squared Test for Independence results "),
                      verbatimTextOutput("independence"),
                      plotly:: plotlyOutput("chiPlot2")
                  )
@@ -223,8 +223,8 @@ ui <- fluidPage(
                      mainPanel(
                              conditionalPanel("input.test_choice == 'One-sample t test'",
                                  tabsetPanel(
-                                     tabPanel("One Sample T-test",
-                                         titlePanel("Is the normality assumption satisfied (according to a Shapiro-Wilkes test)?"),
+                                     tabPanel("One Sample t-test",
+                                         titlePanel("Shapiro-Wilkes Test for Normality"),
                                          verbatimTextOutput("ttest_assumption_print1"),
                                          conditionalPanel("input.assumption == 'Shapiro-Wilkes'",titlePanel("Shapiro-Wilkes Test"),
                                                          verbatimTextOutput("shapiro")
@@ -232,7 +232,7 @@ ui <- fluidPage(
                                          conditionalPanel("input.assumption == 'Normal Q-Q plot'", titlePanel("Normal Q-Q plot"),
                                                           plotly:: plotlyOutput("qqPlot")
                                          ),
-                                      titlePanel("One sample t-test Results"),
+                                      titlePanel("One sample t-test results"),
                                       verbatimTextOutput("test_stat"),
                                       plotly:: plotlyOutput("tPlot")
                                          
@@ -241,8 +241,8 @@ ui <- fluidPage(
                              ),
                              conditionalPanel("input.test_choice == 'Two-sample t test'",
                                               tabsetPanel(
-                                                  tabPanel("Two Sample T-test",
-                                                           titlePanel("Is the normality assumption satisfied (according to a Shapiro-Wilkes test)?"),
+                                                  tabPanel("Two Sample t-test",
+                                                           titlePanel("Shapiro-Wilkes Test for Normality)?"),
                                                            verbatimTextOutput("ttest_assumption_print2"),
                                                            conditionalPanel("input.assumption2 == 'Shapiro-Wilkes'", textOutput("shap2_1") ,
                                                                             verbatimTextOutput("shapiro2_1"), textOutput("shap2_2"), verbatimTextOutput("shapiro2_2") 
@@ -250,7 +250,7 @@ ui <- fluidPage(
                                                            conditionalPanel("input.assumption2 == 'Normal Q-Q plot'",titlePanel("Normal Q-Q plots"),
                                                                             plotly:: plotlyOutput("qqPlot2")
                                                            ),
-                                                           titlePanel("Two sample t-test Results"),
+                                                           titlePanel("Two sample t-test results"),
                                                            verbatimTextOutput("test_stat2"),
                                                            plotly:: plotlyOutput("tPlot2")
                                                   )
