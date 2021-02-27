@@ -186,7 +186,7 @@ ui <- fluidPage(
                  )
              )
         ),
-        tabPanel("t-tests",
+        tabPanel("T-tests",
                  sidebarLayout(
                      
                      sidebarPanel(
