@@ -6,4 +6,4 @@ The data is cleaned and limitations are discussed with regards to bias and valid
 
 Three hypothesis tests were conducted to test: (1) do the number of covid counts follow a Poisson distribution?, (2) the frequency of dental visits independent of whether students live with their parents?, and (3) the heights of male and female DATA2X02 students consistent with the statistics reported by the ABS?. These questions are addressed using chi-squared (goodness of fit and independence) tests and one-sample t-tests.
 
-Link to the shiny web application that dynamically conducts hypothesis tests: https://sourish27.shinyapps.io/Hypothesis_Testing_App/
+Link to the shiny web application that dynamically conducts hypothesis tests: https://sourish27.shinyapps.io/Hypothesis-Testing-Application/
